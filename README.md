@@ -13,4 +13,5 @@ Twitch Trading Bot for lnmarkets.com with interactive voting. Engage your viewer
 # mod commands
 ```
 !sell_limit $qty $leverage $price
+!reset_votes
 ```
