@@ -17,6 +17,7 @@ const opts = {
 const client = new tmi.client(opts);
 
 let votes = {
+  usernames: [],
   long: 0,
   short: 0
 };
@@ -45,13 +46,20 @@ function onMessageHandler (target, context, msg, self) {
     args = commandName.split(" ");
     if (args.length === 1) {
       client.say(target, `current votes: long: ${votes.long} short ${votes.short}`);
+      client.say(target, `users already voted: ${votes.usernames.join(",")}`);
     }
     if (args.length > 1) {
       side = args[1];
-      // sanity check
-      if (side === "long" || side === "short") {
-        votes[side] += 1;
-        client.say(target, `${context.username} voted for ${side}`);
+      // has user already voted?
+      if (votes.usernames.indexOf(context.username) === -1) {
+        // sanity check
+        if (side === "long" || side === "short") {
+          votes[side] += 1;
+          votes.usernames.push(context.username);
+          client.say(target, `${context.username} voted for ${side}`);
+        }
+      } else {
+        client.say(target, `${context.username} you already voted for ${side}`);
       }
     }
   }
@@ -78,15 +86,28 @@ function onMessageHandler (target, context, msg, self) {
       console.log(`* Executed ${commandName} command`);
     });
   }
-
-  // only privileges users can runs those commands
-  if  (target === "#dni256" || context.mod === true) {
-
-    if (commandName === '!reset_votes') {
-      votes.long = 0;
-      votes.short = 0;
-      client.say(target, `${context.username} reseted votes`);
-      return false;
+  // only channel owner can run those commands
+  // make very sure only privleges can do that maybe not even mods
+  // dangerous :D
+  // TODO: cleanup no duplicate code :)
+  if  (target === "#dni256") {
+    if (commandName === '!close') {
+      let args = parseArgs(commandName);
+      if (args) {
+        let pid = args[1];
+        run_shell("lnm close "+pid, function(balance){
+          client.say(target, `${context.username} closed order`);
+        });
+      }
+    }
+    if (commandName === '!cancel') {
+      let args = parseArgs(commandName);
+      if (args) {
+        let pid = args[1];
+        run_shell("lnm cancel "+pid, function(balance){
+          client.say(target, `${context.username} canceled order`);
+        });
+      }
     }
     if (commandName.indexOf('!sell_limit') === 0) {
       // args very DANGEROUS to pass into run_shell
@@ -106,6 +127,35 @@ function onMessageHandler (target, context, msg, self) {
 
     }
   }
+
+  // only privileges users can runs those commands
+  if  (target === "#dni256" || context.mod === true) {
+
+    if (commandName === '!cancel_all') {
+      run_shell("lnm cancel_all", function(balance){
+        client.say(target, `${context.username} canceled all orders`);
+      });
+    }
+    if (commandName === '!close_all') {
+      run_shell("lnm close_all", function(balance){
+        client.say(target, `${context.username} closed all orders`);
+      });
+    }
+    if (commandName === '!execute_votes') {
+      // maybe a fixed amount and leverage if voting has ended so mod couldnt exploit
+      make_trade(votes);
+      votes.long = 0;
+      votes.short = 0;
+      votes.usernames = [];
+      client.say(target, `${context.username} executed votes`);
+    }
+    if (commandName === '!reset_votes') {
+      votes.long = 0;
+      votes.short = 0;
+      votes.usernames = [];
+      client.say(target, `${context.username} reseted votes`);
+    }
+  }
 }
 
 
@@ -123,6 +173,15 @@ function run_shell(cmd, done) {
     }
     done(stdout);
   });
+}
+
+function parseArgs(cmd) {
+  let split = cmd.split(" ");
+  if (split.length > 1) {
+    return split;
+  }
+  // return false if there is no args
+  return false;
 }
 
 // Called every time the bot connects to Twitch chat
