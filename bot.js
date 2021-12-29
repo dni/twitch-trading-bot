@@ -35,11 +35,8 @@ function onMessageHandler (target, context, msg, self) {
 
   const commandName = msg.trim();
 
-  // console.log(context);
-  //
-
   if (commandName === '!help') {
-      client.say(target, `help command not done`);
+      client.say(target, `https://github.com/dni/twitch-trading-bot/blob/main/README.md`);
   }
 
   if (commandName.indexOf('!vote') === 0) {
@@ -83,8 +80,8 @@ function onMessageHandler (target, context, msg, self) {
   if (commandName === '!open_positions') {
     run_shell("lnm positions open", function(json){
       print_positions(target, client, "open", json);
+      console.log(`* Executed ${commandName} command`);
     });
-    console.log(`* Executed ${commandName} command`);
   }
 
   if (commandName === '!balance') {
@@ -93,6 +90,7 @@ function onMessageHandler (target, context, msg, self) {
       console.log(`* Executed ${commandName} command`);
     });
   }
+
   // only channel owner can run those commands
   // make very sure only privleges can do that maybe not even mods
   // dangerous :D
@@ -238,6 +236,7 @@ function market_order_validation(target, client, commandName, callback) {
       client.say(target, `input validation failed`);
     }
 }
+
 function limit_order_validation(target, client, commandName, callback) {
     args = commandName.split(" ");
     qty = parseInt(args[1]);
