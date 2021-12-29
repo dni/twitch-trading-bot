@@ -36,10 +36,10 @@ function onMessageHandler (target, context, msg, self) {
   const commandName = msg.trim();
 
   // console.log(context);
+  //
 
-  if (commandName === '!running_positions') {
-    client.say(target, `Running positions: []`);
-    console.log(`* Executed ${commandName} command`);
+  if (commandName === '!help') {
+      client.say(target, `help command not done`);
   }
 
   if (commandName.indexOf('!vote') === 0) {
@@ -64,18 +64,25 @@ function onMessageHandler (target, context, msg, self) {
     }
   }
 
+  if (commandName === '!deposit') {
+    // think about doing fixed deposites or maybe let the user choose the amount?
+    // TODO: maybe somehow create a qr code to display in twitch? is that possible? HELP
+    run_shell("lnm deposit 1000", function(json){
+        data = JSON.parse(json);
+        client.say(target, `you payment request for 1000 sats has been created: ${data.paymentRequest}`);
+    });
+  }
+
+  if (commandName === '!running_positions') {
+    run_shell("lnm positions", function(json){
+      print_positions(target, client, "running", json);
+    });
+    console.log(`* Executed ${commandName} command`);
+  }
+
   if (commandName === '!open_positions') {
     run_shell("lnm positions open", function(json){
-      positions = JSON.parse(json);
-      if (positions.length > 0) {
-        client.say(target, `Open positions: (pid, created_at, side, type, price, qty, leverage, margin, liquidation, stoploss, takeprofit)`);
-        positions.forEach(function(p){
-          created_at = new Date(p.creation_ts).toISOString();
-          client.say(target, `Position: ${p.pid}, ${created_at}, ${p.side}, ${p.type}, ${p.price}, ${p.quantity}, ${p.leverage}, ${p.margin}, ${p.liquidation}, ${p.stoploss}, ${p.takeprofit}.`);
-        });
-      } else {
-        client.say(target, `No open positions.`);
-      }
+      print_positions(target, client, "open", json);
     });
     console.log(`* Executed ${commandName} command`);
   }
@@ -109,22 +116,41 @@ function onMessageHandler (target, context, msg, self) {
         });
       }
     }
-    if (commandName.indexOf('!sell_limit') === 0) {
-      // args very DANGEROUS to pass into run_shell
-      //  TODO: maybe think about some manual activation of some kind from the mods or me before we run the command
-      //  IDEA: maybe typecheck all the arguments because everything has to be float/integer
-      //  ??? malicious requests should be safer when checking for int?
-      //  also ban people if they try to use it maliciously
-      args = commandName.split(" ");
-      console.log(args);
-      qty = 1;
-      leverage = 100;
-      price = 1000000;
-      run_shell(`lnm sell_limit ${qty} ${leverage} ${price}`, function(res){
-        client.say(target, `You shorted the market! :), `);
-        console.log(`* Executed ${commandName} command`);
-      });
 
+    if (commandName.indexOf('!buy_market') === 0) {
+      market_order_validation(target, client, commandName, function(qty, leverage) {
+        run_shell(`lnm buy_market ${qty} ${leverage}`, function(res){
+          client.say(target, `You bought the market! :)`);
+          console.log(`* Executed ${commandName} command`);
+        });
+      });
+    }
+
+    if (commandName.indexOf('!sell_market') === 0) {
+      market_order_validation(target, client, commandName, function(qty, leverage) {
+        run_shell(`lnm sell_market ${qty} ${leverage}`, function(res){
+          client.say(target, `You sold the market! :)`);
+          console.log(`* Executed ${commandName} command`);
+        });
+      });
+    }
+
+    if (commandName.indexOf('!sell_limit') === 0) {
+      limit_order_validation(target, client, commandName, function(qty, leverage, price) {
+        run_shell(`lnm sell_limit ${qty} ${leverage} ${price}`, function(res){
+          client.say(target, `created a sell limit order! :)`);
+          console.log(`* Executed ${commandName} command`);
+        });
+      });
+    }
+
+    if (commandName.indexOf('!buy_limit') === 0) {
+      limit_order_validation(target, client, commandName, function(qty, leverage, price) {
+        run_shell(`lnm buy_limit ${qty} ${leverage} ${price}`, function(res){
+          client.say(target, `created a buy limit order! :)`);
+          console.log(`* Executed ${commandName} command`);
+        });
+      });
     }
   }
 
@@ -143,7 +169,7 @@ function onMessageHandler (target, context, msg, self) {
     }
     if (commandName === '!execute_votes') {
       // maybe a fixed amount and leverage if voting has ended so mod couldnt exploit
-      make_trade(votes);
+      // make_trade(votes);
       votes.long = 0;
       votes.short = 0;
       votes.usernames = [];
@@ -182,6 +208,48 @@ function parseArgs(cmd) {
   }
   // return false if there is no args
   return false;
+}
+
+function print_positions(target, client, type, json) {
+  positions = JSON.parse(json);
+  if (positions.length > 0) {
+    client.say(target, `${type} positions: (pid, created_at, PL, side, type, price, qty, leverage, margin, liquidation, stoploss, takeprofit)`);
+    positions.forEach(function(p){
+      created_at = new Date(p.creation_ts).toISOString();
+      client.say(target, `Position: ${p.pid}, ${created_at}, ${p.pl}, ${p.side}, ${p.type}, ${p.price}, ${p.quantity}, ${p.leverage}, ${p.margin}, ${p.liquidation}, ${p.stoploss}, ${p.takeprofit}.`);
+    });
+  } else {
+    client.say(target, `No ${type} positions.`);
+  }
+}
+
+// args very DANGEROUS to pass into run_shell
+//  TODO: maybe think about some manual activation of some kind from the mods or me before we run the command
+//  IDEA: DONE maybe typecheck all the arguments because everything has to be float/integer
+//  DONE: ??? malicious requests should be safer when checking for int? DONE
+//  also ban people if they try to use it maliciously
+function market_order_validation(target, client, commandName, callback) {
+    args = commandName.split(" ");
+    qty = parseInt(args[1]);
+    leverage = parseInt(args[2]);
+    if (typeof qty === "number" && qty > 0 && typeof leverage === "number" && leverage > 0) {
+      callback(qty, leverage);
+    } else {
+      client.say(target, `input validation failed`);
+    }
+}
+function limit_order_validation(target, client, commandName, callback) {
+    args = commandName.split(" ");
+    qty = parseInt(args[1]);
+    leverage = parseInt(args[2]);
+    price = parseInt(args[3]);
+    if (typeof qty === "number" && qty > 0
+      && typeof leverage === "number" && leverage > 0
+      && typeof price === "number" && price > 0) {
+      callback(qty, leverage, price);
+    } else {
+      client.say(target, `input validation failed`);
+    }
 }
 
 // Called every time the bot connects to Twitch chat
