@@ -4,6 +4,8 @@ Twitch Trading Bot for lnmarkets.com with interactive voting. Engage your viewer
 ## TODO
 * add takeprofit and add margin to orders
 * do some kind of !profit_of_session command
+* somehow create QR code to make depositing easier
+* format the the output of print_positions
 
 # commands
 
@@ -28,12 +30,14 @@ creates an payment request over 1000 sats and prints the address
 ```
 !balance
 ```
-shows current wallet balance in satoshis
+prints current wallet balance in satoshis
 ```
 !open_positions
 !running_positions
-
 ```
+prints current orders
+
+
 # owner commands
 ```
 !close $pid
